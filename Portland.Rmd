@@ -1,0 +1,203 @@
+---
+title: "Is it getting wetter in Portland?"
+author: "Mathew Attipetty"
+date: "2023-06-11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Portland, Oregon is one of my favorite cities to visit ever since I was a kid. However with each and every visit, I either hear from friends or locals on how it's getting "wetter" and "weirder" with the weather. Going off these notions, between the years 1950 to 2023, Portland has experienced a noticeable shift in its rainfall patterns. According to the Local Climatological Data (LCD) and four weather stations (PORTLAND HILLSBORO AIRPORT, PORTLAND INTERNATIONAL AIRPORT, PORTLAND TROUTDALE AIRPORT,VANCOUVER PEARSON AIRPORT), the city is getting wetter with each passing year. This trend is more than just an increase in annual rainfall, it highlights a broader climate pattern that is critical to understanding the city's evolving weather conditions. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+
+df <- read.csv("C:/Users/matti/Desktop/AAE 718 Data/climate_portland.csv")
+
+df$DATE <- as.Date(df$DATE)
+
+# Convert precipitation data to numeric, handling trace amounts (value obtained here: https://stateclimate.org/pdfs/journal-articles/2013_Adnan_et_al_2013.pdf)
+df$HourlyPrecipitation <- ifelse(df$HourlyPrecipitation == 'T', 0.01, df$HourlyPrecipitation)
+df$HourlyPrecipitation <- as.numeric(df$HourlyPrecipitation)
+
+df <- df %>%
+  arrange(DATE) %>%
+  mutate(Year = year(DATE))  # Get the year of each date
+
+df <- df %>%
+  group_by(Year) %>%
+  summarise(TotalYearlyPrecip = sum(HourlyPrecipitation, na.rm = TRUE))  # Calculate the total yearly precipitation
+
+df <- df %>%
+  mutate(CumulativePrecip = cumsum(TotalYearlyPrecip))  # Calculate the cumulative precipitation
+
+# Plot the data
+ggplot(df, aes(x = Year, y = CumulativePrecip)) +
+  geom_line() +
+  labs(x = "Year", y = "Cumulative Precipitation (inches)", 
+       title = "Cumulative Rainfall Over Time") +
+  scale_x_continuous(limits = c(1950, 2023)) +
+  theme_minimal()
+
+```
+The cumulative rainfall in Portland has been growing steadily since 1950. However, an interesting shift happened in the 2000s. The growth in cumulative rainfall went from steady to exponential. This suggests a significant increase in the frequency and intensity of rainfall events, marking a departure from the patterns of the 20th century.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(lubridate)
+library(zoo)
+
+df <- read.csv("C:/Users/matti/Desktop/AAE 718 Data/climate_portland.csv")
+
+df$DATE <- as.Date(df$DATE)
+
+# Convert precipitation data to numeric, handling trace amounts
+df$HourlyPrecipitation <- ifelse(df$HourlyPrecipitation == 'T', 0.01, df$HourlyPrecipitation)
+df$HourlyPrecipitation <- as.numeric(df$HourlyPrecipitation)
+
+# Get the month and year of each date
+df <- df %>%
+  mutate(Year = year(DATE), Month = month(DATE))
+
+# Determine the maximum year in the data
+max_year <- max(year(df$DATE))
+
+# Create a new data frame that summarizes the precipitation by year and month
+df_monthly <- df %>%
+  group_by(Year = year(DATE), Month = month(DATE, label = TRUE)) %>%
+  summarise(TotalRainfall = sum(HourlyPrecipitation, na.rm = TRUE))
+
+# Plot the heatmap
+ggplot(df_monthly, aes(x = Year, y = Month, fill = TotalRainfall)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(x = "Year", y = "Month", fill = "Total Rainfall", 
+       title = "Monthly Rainfall Heatmap") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1950, max_year, 10))
+
+```
+A heatmap analysis of monthly rainfall data further emphasizes this trend. It highlights how each successive month, particularly in recent years, is receiving more rainfall than the last. The shift towards heavier precipitation is not confined to traditionally wet seasons but is spread out across the entire year. This further reinforces the idea that Portland's climate is not just experiencing more rainfall, but possibly a fundamental shift in precipitation patterns.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(zoo)
+
+# Read the data
+df <- read.csv("C:/Users/matti/Desktop/AAE 718 Data/climate_portland.csv")
+
+# Define the function
+plot_rolling_avg_precip <- function(df) {
+  df$DATE <- as.Date(df$DATE)
+
+  # Convert precipitation data to numeric, handling trace amounts
+  df$HourlyPrecipitation <- ifelse(df$HourlyPrecipitation == 'T', 0.01, df$HourlyPrecipitation)
+  df$HourlyPrecipitation <- as.numeric(df$HourlyPrecipitation)
+
+  df <- df %>%
+    arrange(DATE) %>%
+    mutate(Year = floor_date(DATE, "year"))  # Get the year of each date
+
+  df <- df %>%
+    group_by(Year) %>%
+    summarise(AvgYearlyPrecip = mean(HourlyPrecipitation, na.rm = TRUE))
+
+  df <- df %>%
+    mutate(RollingAvgPrecip = rollapply(AvgYearlyPrecip, width = 3, FUN = mean, partial = TRUE, align = "right")) %>%
+    na.omit()  # remove rows with NA in 'RollingAvgPrecip'
+  
+  ggplot(df, aes(x = Year, y = RollingAvgPrecip)) +
+    geom_line() +
+    labs(x = "Date", y = "3-Year Rolling Average Precipitation", 
+         title = "Rolling Average Precipitation Over Time") +
+    theme_minimal()
+}
+
+# Use the function
+plot_rolling_avg_precip(df) 
+```
+The increasing trend in rainfall becomes even clearer when examining the rolling average precipitation over time. The upward trend indicates that the city's average rainfall is not only increasing but also that the increases are becoming more pronounced with time. This further underscores the change in rainfall patterns the city is experiencing.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+
+# Load the data
+df <- read_csv("C:/Users/matti/Desktop/AAE 718 Data/climate_portland.csv")
+
+
+# Convert 'DATE' column to Date and 'HourlyDryBulbTemperature' to numeric
+df$DATE <- as.Date(df$DATE)
+df$HourlyDryBulbTemperature <- as.numeric(df$HourlyDryBulbTemperature)
+
+# Extract the year from each date and filter to keep only years up to 2022 since 2023 is not completely finished with summer temperatures
+df <- df %>%
+  mutate(Year = year(DATE)) %>%
+  filter(Year <= 2022)
+
+# Group by year and calculate the yearly high and low temperatures
+yearly_temps <- df %>%
+  group_by(Year) %>%
+  summarise(Yearly_High = max(HourlyDryBulbTemperature, na.rm = TRUE),
+            Yearly_Low = min(HourlyDryBulbTemperature, na.rm = TRUE))
+
+ggplot(yearly_temps, aes(x = Year)) +
+  geom_line(aes(y = Yearly_High), colour = "red") +
+  geom_line(aes(y = Yearly_Low), colour = "blue") +
+  labs(x = "Year", y = "Temperature (°F)", 
+       title = "Yearly Average High and Low Temperatures") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(min(yearly_temps$Year), max(yearly_temps$Year), by = 5)) +
+  scale_colour_manual("", 
+                      breaks = c("Yearly High", "Yearly Low"),
+                      values = c("red", "blue"))
+```
+Interestingly, amidst these changes in rainfall, Portland's yearly high and low temperatures have remained relatively consistent over the same period. This suggests that while precipitation is on the rise, the city's overall thermal indicators have remained stable. The showcasing of higher precipitation doesn't necessarily correspond with extreme temperature changes which highlights possible external influences on the precipitation changes. 
+
+```{r,echo=FALSE, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(zoo)
+
+# Load the data
+df <- read_csv("C:/Users/matti/Desktop/AAE 718 Data/climate_portland.csv")
+
+# Convert 'DATE' column to Date and 'HourlyRelativeHumidity' to numeric
+df$DATE <- as.Date(df$DATE)
+df$HourlyRelativeHumidity <- as.numeric(df$HourlyRelativeHumidity)
+
+# Remove rows with NA in 'HourlyRelativeHumidity'
+df <- df %>% drop_na(HourlyRelativeHumidity)
+
+# Extract the year from each date
+df$Year <- year(df$DATE)
+
+# Filter out years beyond 2022 since the data isn't complete for the average 
+df <- df %>% filter(Year <= 2022)
+
+# Group by year and calculate the yearly average humidity
+df_yearly_humidity <- df %>%
+  group_by(Year) %>%
+  summarise(AvgHumidity = mean(HourlyRelativeHumidity, na.rm = TRUE))
+
+# Generate the plot
+ggplot(df_yearly_humidity, aes(x = Year, y = AvgHumidity)) +
+  geom_line() +
+  labs(x = "Year", y = "Average Yearly Humidity (%)",
+       title = "Yearly Average Humidity in Portland") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(min(df_yearly_humidity$Year), max(df_yearly_humidity$Year), by = 5))
+
+```
+
+Even more intriguing is the observed slight increase in average yearly humidity, despite the large increase in rainfall. Humidity was chosen since this indicator contributes to the feeling of "wetness" in a subjective sense as the air is holding water. This trend could be due to more intense and shorter rainfall events leading to higher precipitation totals but lower overall humidity. Alternatively, it could also be due to broader climate dynamics affecting moisture availability and distribution.
+
+In conclusion, the climatic trends in Portland from 1950 to 2023 paint an interesting picture of the weather in the region. Despite consistent temperature patterns, the city has seen a substantial increase in rainfall, a rapid acceleration in cumulative rainfall in recent years, and a slight increase to stable pattern in average yearly humidity which does yield a picture of the city getting "wetter". These trends offer valuable insights into the city's changing climate and underscore the complexity of climatic systems. 
